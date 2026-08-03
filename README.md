@@ -93,7 +93,7 @@ sequenceDiagram
    - Jika **sudah ada** IP & port → langsung masuk ke `ChatScreen`.
    - Jika **belum ada** → arahkan ke `ConnectScreen`.
 3. **Koneksi** — Di `ConnectScreen`, pengguna mengisi:
-   - **IP laptop** (contoh `192.168.1.8`)
+   - **IP laptop** (contoh `192.168.x.xx`)
    - **Port** (contoh `8123`)
    - **Token** (opsional)
    - Tombol *Uji Koneksi* memanggil `GET /api/health` untuk memastikan server Yukihana aktif. Tombol *Simpan & Mulai Ngobrol* hanya menyimpan jika uji berhasil.
