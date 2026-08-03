@@ -1,4 +1,5 @@
 # 🌸 Mobile Yukihana
+<img src="assets/yukihana.gif" width="600">
 
 Aplikasi mobile **Flutter** untuk ngobrol (chat) dengan **Yukihana**, asisten pribadi yang berjalan di laptop/server di jaringan lokal (LAN). Ponsel dan laptop terhubung langsung lewat Wi-Fi yang sama menggunakan protokol HTTP sederhana.
 
