@@ -1,0 +1,34 @@
+name: mobile_yuki
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_fonts: ^8.2.1
+  http: ^1.6.0
+  shared_preferences: ^2.5.5
+  video_player: ^2.13.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_native_splash: ^2.4.8
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/splash/logo.png
+    - assets/Yukihana.mp4
+
+flutter_native_splash:
+  color: "#FAF7FC"
+  android: true
+  ios: true
+  android_12:
+    color: "#FAF7FC"
