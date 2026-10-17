@@ -10,8 +10,9 @@ import 'connect_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final YukiConfig config;
+  final ApiService Function(YukiConfig)? apiFactory;
 
-  const ChatScreen({super.key, required this.config});
+  const ChatScreen({super.key, required this.config, this.apiFactory});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -22,16 +23,23 @@ class _ChatScreenState extends State<ChatScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   bool _typing = false;
+  late YukiConfig _activeConfig;
   late ApiService _api;
+
+  ApiService _apiFor(YukiConfig config) =>
+      widget.apiFactory?.call(config) ?? ApiService(config);
 
   @override
   void initState() {
     super.initState();
-    _api = ApiService(widget.config);
-    _messages.add(const _Msg(
-      'Halo, aku Yukihana! Ketik sesuatu untuk ngobrol atau kasih perintah ke laptop.',
-      from: false,
-    ));
+    _activeConfig = widget.config;
+    _api = _apiFor(_activeConfig);
+    _messages.add(
+      const _Msg(
+        'Halo, aku Yukihana. Yuk ngobrol atau minta bantuanku.',
+        from: false,
+      ),
+    );
   }
 
   @override
@@ -50,13 +58,16 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _input.clear();
     _scrollDown();
+
     String reply;
     try {
       reply = await _api.say(text);
     } on TimeoutException {
-      reply = 'Waktu habis. Pastikan laptop menyala dan jaringan sama.';
-    } catch (e) {
-      reply = 'Gagal terhubung ke Yukihana: $e';
+      reply = 'Waktu respons habis. Periksa koneksi laptop, lalu coba lagi.';
+    } on ApiException catch (error) {
+      reply = error.message;
+    } catch (error) {
+      reply = 'Koneksi gagal: $error';
     }
     if (!mounted) return;
     setState(() {
@@ -71,39 +82,55 @@ class _ChatScreenState extends State<ChatScreen> {
       if (_scroll.hasClients) {
         _scroll.animateTo(
           _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
         );
       }
     });
   }
 
   Future<void> _reconnect() async {
-    final cfg = await Navigator.of(context).push<YukiConfig?>(
-      MaterialPageRoute(builder: (_) => const ConnectScreen()),
+    final config = await Navigator.of(context).push<YukiConfig?>(
+      MaterialPageRoute(
+        builder: (_) => ConnectScreen(apiFactory: widget.apiFactory),
+      ),
     );
-    if (cfg == null || !mounted) return;
+    if (config == null || !mounted) return;
     setState(() {
-      _api = ApiService(cfg);
-      _messages.add(const _Msg('Tersambung kembali.', from: false));
+      _activeConfig = config;
+      _api = _apiFor(config);
+      _messages.add(const _Msg('Koneksi diperbarui.', from: false));
     });
+    _scrollDown();
   }
 
   void _showInfo() {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Koneksi'),
+        title: const Text('Koneksi Yukihana'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Server: ${widget.config.baseUrl}'),
-            const SizedBox(height: 8),
-            Text(
-              widget.config.token.isEmpty
-                  ? 'Token: tidak dipakai'
-                  : 'Token: dipakai',
+            const Text('Alamat server'),
+            const SizedBox(height: 4),
+            SelectableText(_activeConfig.baseUrl),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Icon(
+                  Icons.verified_user_outlined,
+                  size: 18,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _activeConfig.token.isEmpty
+                      ? 'Tanpa token'
+                      : 'Token digunakan',
+                ),
+              ],
             ),
           ],
         ),
@@ -117,7 +144,7 @@ class _ChatScreenState extends State<ChatScreen> {
               Navigator.of(ctx).pop();
               _reconnect();
             },
-            child: const Text('Ubah koneksi'),
+            child: const Text('Ubah alamat'),
           ),
         ],
       ),
@@ -129,7 +156,39 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Yukihana'),
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: const BoxDecoration(
+                color: AppColors.lavenderLight,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.filter_vintage,
+                color: AppColors.primary,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 11),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Yukihana', style: TextStyle(fontSize: 17, height: 1.1)),
+                SizedBox(height: 4),
+                Text(
+                  'Asisten pribadimu',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline),
@@ -137,10 +196,11 @@ class _ChatScreenState extends State<ChatScreen> {
             onPressed: _showInfo,
           ),
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.tune),
             tooltip: 'Ubah koneksi',
             onPressed: _reconnect,
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: AppBackground(
@@ -149,20 +209,22 @@ class _ChatScreenState extends State<ChatScreen> {
             Expanded(
               child: ListView.builder(
                 controller: _scroll,
-                padding: const EdgeInsets.fromLTRB(16, 92, 16, 12),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
                 itemCount: _messages.length + (_typing ? 1 : 0),
-                itemBuilder: (context, i) {
-                  if (i == _messages.length) {
-                    return const _Msg('Yukihana sedang mengetik...', from: false);
+                itemBuilder: (context, index) {
+                  if (index == _messages.length) {
+                    return const _TypingIndicator();
                   }
-                  return _messages[i];
+                  return _messages[index];
                 },
               ),
             ),
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
                 child: _InputBar(
                   controller: _input,
                   enabled: !_typing,
@@ -193,13 +255,13 @@ class _InputBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: AppColors.borderIdle, width: 1),
+        color: AppColors.surface.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: AppColors.borderIdle),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.12),
-            blurRadius: 16,
+            color: AppColors.primary.withValues(alpha: 0.10),
+            blurRadius: 18,
             offset: const Offset(0, 4),
           ),
         ],
@@ -210,34 +272,45 @@ class _InputBar extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              enabled: enabled,
               minLines: 1,
-              maxLines: 4,
+              maxLines: 5,
+              textCapitalization: TextCapitalization.sentences,
               textInputAction: TextInputAction.newline,
-              style: const TextStyle(color: AppColors.textMain, fontSize: 15),
-              decoration: InputDecoration(
-                hintText: 'Tulis pesan...',
-                hintStyle: const TextStyle(color: AppColors.textSecondary),
+              style: const TextStyle(
+                color: AppColors.textMain,
+                fontSize: 15,
+                height: 1.35,
+              ),
+              decoration: const InputDecoration(
+                hintText: 'Tulis pesan untuk Yuki…',
                 filled: false,
                 isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 15,
+                  vertical: 13,
+                ),
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
               ),
+              onSubmitted: (_) => enabled ? onSend() : null,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           SizedBox(
-            width: 44,
-            height: 44,
-            child: IconButton(
+            width: 46,
+            height: 46,
+            child: IconButton.filled(
               onPressed: enabled ? onSend : null,
-              icon: const Icon(Icons.send, color: Colors.white),
+              tooltip: 'Kirim pesan',
+              icon: const Icon(Icons.arrow_upward_rounded),
               style: IconButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                disabledBackgroundColor:
-                    AppColors.primary.withValues(alpha: 0.4),
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.primary.withValues(
+                  alpha: 0.4,
+                ),
                 shape: const CircleBorder(),
               ),
             ),
@@ -248,6 +321,14 @@ class _InputBar extends StatelessWidget {
   }
 }
 
+class _TypingIndicator extends StatelessWidget {
+  const _TypingIndicator();
+
+  @override
+  Widget build(BuildContext context) =>
+      const _Msg('Yukihana sedang mengetik…', from: false);
+}
+
 class _Msg extends StatelessWidget {
   final String text;
   final bool from;
@@ -256,36 +337,40 @@ class _Msg extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bubbleColor = from ? AppColors.primary : AppColors.lavenderLight;
+    final bubbleColor = from
+        ? AppColors.primary
+        : AppColors.surface.withValues(alpha: 0.94);
     final textColor = from ? Colors.white : AppColors.textMain;
-
     return Align(
       alignment: from ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 5),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
+          maxWidth: MediaQuery.sizeOf(context).width * 0.82,
         ),
         decoration: BoxDecoration(
           color: bubbleColor,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(20),
-            topRight: const Radius.circular(20),
-            bottomLeft: Radius.circular(from ? 20 : 4),
-            bottomRight: Radius.circular(from ? 4 : 20),
+            topLeft: const Radius.circular(19),
+            topRight: const Radius.circular(19),
+            bottomLeft: Radius.circular(from ? 19 : 5),
+            bottomRight: Radius.circular(from ? 5 : 19),
           ),
+          border: from
+              ? null
+              : Border.all(color: AppColors.borderIdle.withValues(alpha: 0.75)),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withValues(alpha: from ? 0.18 : 0.07),
-              blurRadius: 10,
+              color: AppColors.primary.withValues(alpha: from ? 0.14 : 0.06),
+              blurRadius: 12,
               offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Text(
           text,
-          style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
+          style: TextStyle(color: textColor, fontSize: 15, height: 1.4),
         ),
       ),
     );

@@ -146,3 +146,28 @@ flutter build apk --release
 ---
 
 Dibuat dengan 💜 untuk **Yukihana**.
+
+## Pembaruan koneksi dan antarmuka
+
+- Uji koneksi memakai `GET /api/health`; chat memakai `POST /api/say` dengan JSON `{"text":"..."}` dan membaca field `reply`.
+- Token yang tersimpan dikirim melalui header `X-Yuki-Token` pada health maupun chat. Jika server mewajibkan token, masukkan token yang sama pada form aplikasi.
+- Pesan kegagalan kini membedakan server tidak terjangkau, timeout, autentikasi HTTP 401/403, endpoint HTTP 404, dan JSON respons yang tidak valid.
+- IP laptop dimasukkan manual dan divalidasi sebagai IPv4 (empat oktet 0–255); port harus 1–65535. Tidak ada pemindaian jaringan atau IP laptop yang di-hardcode. Jika DHCP mengganti IP, buka pengaturan koneksi dan uji kembali.
+- Konfigurasi IP, port, dan token tetap disimpan lokal di `SharedPreferences`. Tombol simpan hanya melanjutkan ke chat setelah health check berhasil; chat memakai konfigurasi yang sama.
+- Halaman koneksi dan chat dirapikan dengan tetap menggunakan palet lavender Yukihana. `VideoSplashScreen`, video `assets/Yukihana.mp4`, dan tema global tidak diganti.
+
+### Catatan autentikasi server
+
+Server desktop memeriksa token jika `remote.token` pada konfigurasi server tidak kosong. Jika token dikosongkan, server melewati pemeriksaan autentikasi; perangkat lain yang dapat menjangkau port di jaringan tersebut dapat memanggil endpoint. Gunakan hanya pada jaringan tepercaya. Konfigurasi desktop tidak disimpan dalam repository mobile ini.
+
+### Pemeriksaan
+
+Jalankan pemeriksaan dari folder project:
+
+```bash
+flutter analyze
+flutter test
+flutter build apk --release
+```
+
+Tes mencakup validasi IP/port, kontrak dan header API, respons/error HTTP, timeout, penyimpanan konfigurasi, serta navigasi koneksi ke chat.
